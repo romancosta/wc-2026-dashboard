@@ -1,9 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const path = require('path');
 
 const app = express();
-const API_KEY = '824ecedee085498199a813b41295e8e3';
+const API_KEY = process.env.FOOTBALL_DATA_API_KEY;
 const BASE_URL = 'https://api.football-data.org/v4';
 const WC_ID = 2000;
 
