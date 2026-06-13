@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FIFA World Cup 2026</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; cursor: none; }
+
+  body {
+    background: #0a0e1a;
+    color: #fff;
+    font-family: 'Inter', sans-serif;
+    width: 1080px;
+    height: 1920px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    background: linear-gradient(135deg, #0a0e1a 0%, #1a1f35 100%);
+    border-bottom: 2px solid #c9a84c;
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .trophy { font-size: 2rem; }
+
+  .header-title h1 {
+    font-size: 3.5rem;
+    font-weight: 900;
+    color: #c9a84c;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .header-title p {
+    font-size: 1.65rem;
+    color: #8892a4;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .header-right { text-align: right; }
+
+  .clock {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 2px;
+  }
+
+  .date-display {
+    font-size: 0.65rem;
+    color: #8892a4;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .last-updated {
+    font-size: 0.6rem;
+    color: #4a5568;
+    margin-top: 2px;
+  }
+
+  .body-layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    width: 1080px;
+  }
+
+  .standings-pane {
+    width: 340px;
+    min-width: 340px;
+    max-width: 340px;
+    background: #080c17;
+    border-right: 1px solid #1e2438;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .standings-header {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #c9a84c;
+    padding: 12px 14px 10px;
+    border-bottom: 1px solid #1e2438;
+    flex-shrink: 0;
+  }
+
+  .standings-scroll-window {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .standings-scroll-inner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    padding: 8px;
+    will-change: transform;
+  }
+
+  .group-block { margin-bottom: 22px; padding-bottom: 8px; border-bottom: 1px solid #1e2438; }
+
+  .group-label {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #6b7280;
+    padding: 5px 8px 4px;
+    background: #0f1420;
+    border-radius: 4px;
+    margin-bottom: 4px;
+  }
+
+  .standings-table { width: 100%; border-collapse: collapse; }
+  .standings-table thead tr { border-bottom: 1px solid #1e2438; }
+
+  .standings-table th {
+    font-size: 1.5rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #4a5568;
+    padding: 4px 4px;
+    text-align: center;
+  }
+
+  .standings-table th.th-team { text-align: left; }
+
+  .standings-table td {
+    font-size: 1.25rem;
+    padding: 5px 4px;
+    text-align: center;
+    color: #8892a4;
+    border-bottom: 1px solid #0f1420;
+  }
+
+  .standings-table td.td-team { text-align: left; }
+  .standings-table tr:last-child td { border-bottom: none; }
+
+  .td-team-inner { display: flex; align-items: center; gap: 5px; }
+
+  .s-crest { width: 40px; height: 32px; object-fit: contain; flex-shrink: 0; }
+
+  .s-tla { font-weight: 700; color: #e2e8f0; font-size: 1.95rem; }
+  .s-tla.in-progress { color: #22c55e; }
+  .s-pts { font-weight: 700; color: #c9a84c; }
+  .s-pts.in-progress { color: #22c55e; }
+  .td-stat.in-progress { color: #22c55e; }
+  .s-pos { color: #4a5568; font-size: 0.75rem; min-width: 12px; }
+  .qualify-1 { border-left: 3px solid #22c55e; }
+  .qualify-2 { border-left: 3px solid #3b82f6; }
+
+  .fixtures-pane {
+    width: 740px;
+    min-width: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 12px;
+    scrollbar-width: none;
+  }
+
+  .fixtures-pane::-webkit-scrollbar { display: none; }
+
+  .section { margin-bottom: 24px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #1e2438;
+  }
+
+  .section-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .dot-yesterday { background: #4a5568; }
+  .dot-today { background: #c9a84c; box-shadow: 0 0 8px #c9a84c; }
+  .dot-tomorrow { background: #3b82f6; }
+
+  .section-title {
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #8892a4;
+  }
+
+  .section-title.today { color: #c9a84c; }
+  .match-count { font-size: 0.7rem; color: #4a5568; margin-left: auto; }
+
+  .matches-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+
+  .match-card {
+    background: #111827;
+    border: 1px solid #1e2438;
+    border-radius: 12px;
+    padding: 12px 10px;
+    position: relative;
+    overflow: hidden;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .match-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+
+  .match-card.yesterday::before { background: #4a5568; }
+  .match-card.today::before { background: linear-gradient(90deg, #c9a84c, #f0c870); }
+  .match-card.tomorrow::before { background: #3b82f6; }
+  .match-card.live::before { background: linear-gradient(90deg, #ef4444, #f97316); }
+
+  @keyframes bounceBall {
+  0%   { left: 8px; }
+  100% { left: calc(100% - 36px); }
+}
+@keyframes pulseGreen  { 0%,100%{background:#111827} 50%{background:rgba(34,197,94,0.18)} }
+  @keyframes pulseRed    { 0%,100%{background:#111827} 50%{background:rgba(239,68,68,0.18)} }
+  @keyframes pulseGold   { 0%,100%{background:#111827} 50%{background:rgba(201,168,76,0.18)} }
+  @keyframes pulseOrange { 0%,100%{background:#111827} 50%{background:rgba(249,115,22,0.18)} }
+  @keyframes pulseBlue   { 0%,100%{background:#111827} 50%{background:rgba(59,130,246,0.18)} }
+
+  .anim-goal-home,.anim-goal-away { animation: pulseGreen  1.5s ease-in-out infinite; }
+.kickoff-ball {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-size: 1.4rem;
+  animation: bounceBall 0.6s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 10;
+}
+  .anim-redcard                   { animation: pulseRed    1.5s ease-in-out infinite; }
+  .anim-kickoff                   { animation: pulseGold   1.5s ease-in-out infinite; }
+  .anim-halftime                  { animation: pulseOrange 1.5s ease-in-out infinite; }
+  .anim-fulltime                  { animation: pulseBlue   1.5s ease-in-out infinite; }
+
+  .match-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+  .match-group {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #c9a84c;
+    background: #1a1f35;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .match-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 3px 8px;
+    border-radius: 4px;
+  }
+
+  .status-timed    { color: #3b82f6; background: rgba(59,130,246,0.1); }
+  .status-live     { color: #ef4444; background: rgba(239,68,68,0.1); animation: pulse 1.5s infinite; }
+  .status-finished { color: #4a5568; background: rgba(74,85,104,0.1); }
+  .status-paused   { color: #f97316; background: rgba(249,115,22,0.1); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .match-teams { display: flex; align-items: center; justify-content: space-between; gap: 4px; width: 100%; }
+
+  .team { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; min-width: 0; max-width: 120px; }
+
+  .team-crest { width: 60px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5)); }
+
+  .team-crest-placeholder {
+    width: 48px; height: 48px; background: #1e2438; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; color: #4a5568; font-weight: 700;
+  }
+
+  .team-name { font-size: 1.25rem; font-weight: 700; text-align: center; color: #e2e8f0; line-height: 1.2; word-break: break-word; }
+
+  .score-block { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 2; min-width: 0; }
+
+  .score-with-events { display: flex; align-items: flex-start; justify-content: center; width: 100%; }
+
+  .events-col { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; overflow: hidden; }
+  .events-home { text-align: right; align-items: flex-end; padding-right: 6px; }
+  .events-away { text-align: left; align-items: flex-start; padding-left: 6px; }
+
+  .score-center { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; min-width: 90px; }
+
+  .score { font-size: 2.8rem; font-weight: 900; color: #fff; letter-spacing: 4px; line-height: 1; white-space: nowrap; }
+  .score.live-score { color: #ef4444; }
+  .score-separator { color: #4a5568; }
+
+  .kickoff-time { font-size: 1.5rem; font-weight: 700; color: #c9a84c; letter-spacing: 1px; white-space: nowrap; }
+  .kickoff-label { font-size: 1.25rem; color: #c9a84c; letter-spacing: 1px; text-transform: uppercase; }
+  .tv-channel { font-size: 0.75rem; font-weight: 600; color: #6b7280; letter-spacing: 1px; margin-top: 3px; }
+  .match-minute { font-size: 0.95rem; color: #ef4444; font-weight: 700; }
+
+  .event-line { font-size: 1.0rem; line-height: 1.4; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .event-min { color: #4a5568; font-size: 1.0rem; }
+  .red-line { color: #fc8181; }
+
+  .headshot-overlay { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; animation: hsFade 0.5s ease-in; }
+  .headshot-img { width:84px; height:84px; border-radius:50%; object-fit:cover; background:#1e2438; animation: hsGlow 1.5s ease-in-out infinite; }
+  .headshot-name { font-size:1.05rem; font-weight:700; color:#fff; text-align:center; white-space:normal; }
+  .headshot-fallback { font-size:1.3rem; font-weight:800; color:#fff; text-align:center; animation: hsGlowText 1.5s ease-in-out infinite; }
+  @keyframes hsFade { from{opacity:0} to{opacity:1} }
+  @keyframes hsGlow { 0%,100%{box-shadow:0 0 4px #22c55e} 50%{box-shadow:0 0 18px #22c55e} }
+  @keyframes hsGlowText { 0%,100%{text-shadow:0 0 4px #22c55e} 50%{text-shadow:0 0 16px #22c55e} }
+
+  .no-matches { color: #4a5568; font-size: 0.9rem; padding: 20px; text-align: center; border: 1px dashed #1e2438; border-radius: 12px; }
+
+  .loading { display: flex; align-items: center; justify-content: center; height: 200px; flex-direction: column; gap: 16px; }
+
+  .spinner { width: 36px; height: 36px; border: 3px solid #1e2438; border-top-color: #c9a84c; border-radius: 50%; animation: spin 0.8s linear infinite; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg { color: #ef4444; text-align: center; padding: 40px; font-size: 0.85rem; }
+
+  footer { text-align: center; padding: 8px; color: #2d3748; font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase; border-top: 1px solid #1e2438; flex-shrink: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <img src="https://crests.football-data.org/wm26.png" style="height:88px;width:auto;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+    <div class="header-title">
+      <h1>FIFA World Cup 2026</h1>
+      <p>USA &bull; Canada &bull; Mexico</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="clock" id="clock">--:--</div>
+    <div class="date-display" id="date-display">Loading...</div>
+    <div class="last-updated" id="last-updated">Fetching data...</div>
+  </div>
+</header>
+
+<div class="body-layout">
+  <div class="standings-pane">
+    <div class="standings-header">Group Standings</div>
+    <div class="standings-scroll-window">
+      <div class="standings-scroll-inner" id="standings-inner">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="fixtures-pane" id="fixtures-pane">
+    <div class="loading">
+      <div class="spinner"></div>
+      <p style="color:#4a5568;font-size:0.8rem;letter-spacing:1px;">LOADING FIXTURES...</p>
+    </div>
+  </div>
+</div>
+
+<footer>Auto-refreshes every 30s &bull; football-data.org + ESPN</footer>
+
+<script>
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+    document.getElementById('date-display').textContent = now.toLocaleDateString('en-US', {weekday:'long', year:'numeric', month:'long', day:'numeric'});
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  function localDateStr(d) {
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
+
+  function etAdjustedDateStr(utcDateStr) {
+    // Convert to ET (UTC-4), then if hour is 0 (midnight) treat as previous day
+    const d = new Date(utcDateStr);
+    const etMs = d.getTime() - (4 * 60 * 60 * 1000);
+    const etDate = new Date(etMs);
+    const etHour = etDate.getUTCHours();
+    if (etHour < 1) { etDate.setUTCDate(etDate.getUTCDate() - 1); }
+    return etDate.getUTCFullYear() + '-' + String(etDate.getUTCMonth()+1).padStart(2,'0') + '-' + String(etDate.getUTCDate()).padStart(2,'0');
+  }
+
+  function getDateLabel(utcDateStr) {
+    const matchDay = localDateStr(new Date(utcDateStr));
+    const today = new Date();
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+    if (matchDay === localDateStr(yesterday)) return 'yesterday';
+    if (matchDay === localDateStr(today)) return 'today';
+    if (matchDay === localDateStr(tomorrow)) return 'tomorrow';
+    return 'other';
+  }
+
+  function formatKickoff(utcDateStr) {
+    const d = new Date(utcDateStr);
+    return d.toLocaleString('en-US', {timeZone:'America/New_York', hour:'numeric', minute:'2-digit', hour12:true}).replace(' AM',' AM ET').replace(' PM',' PM ET');
+  }
+
+  function getStatusLabel(status) {
+    const map = {'TIMED':'Upcoming','SCHEDULED':'Upcoming','IN_PLAY':'Live','PAUSED':'Half Time','FINISHED':'Full Time','POSTPONED':'Postponed','CANCELLED':'Cancelled'};
+    return map[status] || status;
+  }
+
+  function getStatusClass(status) {
+    if (status === 'IN_PLAY') return 'status-live';
+    if (status === 'PAUSED') return 'status-paused';
+    if (status === 'FINISHED') return 'status-finished';
+    return 'status-timed';
+  }
+
+  const animState = {};
+  const activeAnims = {};
+  const ANIM_DURATION = 45000;
+
+  function detectAndAnimate(match, prev) {
+    const key = match.id;
+    if (!animState[key]) animState[key] = {goals:{home:0,away:0},reds:{home:0,away:0},status:null};
+    const state = animState[key];
+    const anims = [];
+    const homeGoals = (match.goals && match.goals.home ? match.goals.home.length : 0);
+    const awayGoals = (match.goals && match.goals.away ? match.goals.away.length : 0);
+    const homeReds  = (match.redCards && match.redCards.home ? match.redCards.home.length : 0);
+    const awayReds  = (match.redCards && match.redCards.away ? match.redCards.away.length : 0);
+    if (!prev) {
+      state.goals = {home:homeGoals,away:awayGoals};
+      state.reds  = {home:homeReds,away:awayReds};
+      state.status = match.status;
+      return [];
+    }
+    if (homeGoals > state.goals.home) { anims.push('anim-goal-home'); enqueueHeadshots(key, 'home', (match.goals && match.goals.home ? match.goals.home.slice(state.goals.home) : [])); state.goals.home = homeGoals; }
+    if (awayGoals > state.goals.away) { anims.push('anim-goal-away'); enqueueHeadshots(key, 'away', (match.goals && match.goals.away ? match.goals.away.slice(state.goals.away) : [])); state.goals.away = awayGoals; }
+    if ((homeReds+awayReds) > (state.reds.home+state.reds.away)) { anims.push('anim-redcard'); state.reds={home:homeReds,away:awayReds}; }
+    if (prev.status !== 'IN_PLAY'  && match.status === 'IN_PLAY')  { anims.push('anim-kickoff'); addKickoffBall(key); } else if (prev.status === 'PAUSED' && match.status === 'IN_PLAY') { addKickoffBall(key); }
+    if (prev.status !== 'PAUSED'   && match.status === 'PAUSED')   anims.push('anim-halftime');
+    if (prev.status !== 'FINISHED' && match.status === 'FINISHED') anims.push('anim-fulltime');
+    state.status = match.status;
+    return anims;
+  }
+
+  function addKickoffBall(matchId) { try {
+  const card = document.querySelector('[data-match-id= + matchId + ]');
+  const ball = document.createElement('div');
+  ball.className = 'kickoff-ball';
+  ball.textContent = '⚽';
+  ball.dataset.matchId = matchId;
+  card.appendChild(ball);
+  setTimeout(function(){ if (ball.parentNode) ball.parentNode.removeChild(ball); }, 30000);
+  } catch(e) { console.error('kickoff ball error:', e); } }
+
+function removeKickoffBall(matchId) {
+  const ball = document.querySelector('.kickoff-ball[data-match-id= + matchId + ]');
+  if (ball && ball.parentNode) ball.parentNode.removeChild(ball);
+}
+
+function applyAnimation(matchId, animClasses) {
+    if (!animClasses.length) return;
+    if (activeAnims[matchId]) clearTimeout(activeAnims[matchId].timeout);
+    activeAnims[matchId] = { classes: animClasses, timeout: setTimeout(() => { delete activeAnims[matchId]; }, ANIM_DURATION) };
+  }
+
+  function getAnimClass(matchId) { return activeAnims[matchId] ? activeAnims[matchId].classes.join(' ') : ''; }
+
+  // --- Goal scorer headshot system ---
+  const HEADSHOT_DURATION = 30000;
+  const headshotState = {};
+
+  function enqueueHeadshots(matchId, side, scorers) {
+    if (!scorers || !scorers.length) return;
+    if (!headshotState[matchId]) headshotState[matchId] = {};
+    if (!headshotState[matchId][side]) headshotState[matchId][side] = { current: null, queue: [], timer: null, savedHtml: null };
+    const s = headshotState[matchId][side];
+    scorers.forEach(function(g){ s.queue.push(g); });
+    if (!s.current) advanceHeadshot(matchId, side);
+  }
+
+  function advanceHeadshot(matchId, side) {
+    const s = headshotState[matchId][side];
+    if (!s) return;
+    if (s.timer) { clearTimeout(s.timer); s.timer = null; }
+    s.current = s.queue.shift() || null;
+    if (s.current) s.timer = setTimeout(function(){ advanceHeadshot(matchId, side); }, HEADSHOT_DURATION);
+    paintHeadshot(matchId, side);
+  }
+
+  function headshotHtml(g) {
+    let inner = '';
+    if (g.athleteId) {
+      inner += '<img class="headshot-img" src="https://a.espncdn.com/i/headshots/soccer/players/full/' + g.athleteId + '.png" onerror="this.remove()">';
+      inner += '<div class="headshot-name">' + g.name + '</div>';
+    } else {
+      inner += '<div class="headshot-fallback">' + g.name + '</div>';
+    }
+    return '<div class="headshot-overlay">' + inner + '</div>';
+  }
+
+  function paintHeadshot(matchId, side) {
+    const col = document.querySelector('.events-col[data-match-id="' + matchId + '"][data-side="' + side + '"]');
+    if (!col) return;
+    const s = headshotState[matchId] && headshotState[matchId][side];
+    if (!s) return;
+    if (s.current) {
+      if (!col.dataset.overlaid) { s.savedHtml = col.innerHTML; col.dataset.overlaid = '1'; }
+      col.innerHTML = headshotHtml(s.current);
+    } else if (col.dataset.overlaid) {
+      col.innerHTML = s.savedHtml || '';
+      delete col.dataset.overlaid;
+    }
+  }
+
+  function reapplyHeadshots() {
+    Object.keys(headshotState).forEach(function(mid){
+      Object.keys(headshotState[mid]).forEach(function(side){
+        const s = headshotState[mid][side];
+        if (s.current) {
+          const col = document.querySelector('.events-col[data-match-id="' + mid + '"][data-side="' + side + '"]');
+          if (col) { s.savedHtml = col.innerHTML; col.dataset.overlaid = '1'; col.innerHTML = headshotHtml(s.current); }
+        }
+      });
+    });
+  }
+
+  function renderCrest(team) {
+    if (team.crest) return '<img class="team-crest" src="' + team.crest + '" alt="' + team.tla + '" onerror="this.style.display=&quot;none&quot;">';
+    return '<div class="team-crest-placeholder">' + (team.tla||'?') + '</div>';
+  }
+
+  function renderGoalsList(goals, redCards, side) {
+    let items = '';
+    const g = goals && goals[side] ? goals[side] : [];
+    const r = redCards && redCards[side] ? redCards[side] : [];
+    g.forEach(function(x){ items += '<div class="event-line">&#9917; ' + x.name + ' <span class="event-min">' + x.minute + '</span></div>'; });
+    r.forEach(function(x){ items += '<div class="event-line red-line">🟥 ' + x.name + ' <span class="event-min">' + x.minute + '</span></div>'; });
+    return items;
+  }
+
+  function renderScore(match) {
+    const isLive     = match.status === 'IN_PLAY';
+    const isFinished = match.status === 'FINISHED' || match.status === 'PAUSED';
+    const h = match.score.fullTime.home !== null ? match.score.fullTime.home : 0;
+    const a = match.score.fullTime.away !== null ? match.score.fullTime.away : 0;
+    const tv = match.status === 'FINISHED' ? '<div class="kickoff-label">FT</div>' : (match.tv ? '<div class="tv-channel">&#128250; ' + match.tv + '</div>' : '');
+
+    if (isFinished || isLive) {
+      const cls = isLive ? 'score live-score' : 'score';
+      const homeEvents = renderGoalsList(match.goals, match.redCards, 'home');
+      const awayEvents = renderGoalsList(match.goals, match.redCards, 'away');
+      return '<div class="score-block"><div class="score-with-events">' +
+        '<div class="events-col events-home" data-match-id="' + match.id + '" data-side="home">' + homeEvents + '</div>' +
+        '<div class="score-center"><div class="' + cls + '">' + h + '<span class="score-separator"> : </span>' + a + '</div>' +
+        (isLive && match.minute ? '<div class="match-minute">' + match.minute + "'</div>" : '') +
+        tv + '</div>' +
+        '<div class="events-col events-away" data-match-id="' + match.id + '" data-side="away">' + awayEvents + '</div>' +
+        '</div></div>';
+    }
+
+    return '<div class="score-block"><div class="score-center">' +
+      '<div class="kickoff-time">' + formatKickoff(match.utcDate) + '</div>' +
+      '<div class="kickoff-label">Kick Off</div>' +
+      tv + '</div></div>';
+  }
+
+  let prevMatches = {};
+
+  function renderMatch(match) {
+    const day = getDateLabel(match.utcDate);
+    const isLive = match.status === 'IN_PLAY';
+    const cardClass = isLive ? 'live' : day;
+    const group = match.group ? match.group.replace('GROUP_','Group ') : match.stage.replace(/_/g,' ');
+    const prev = prevMatches[match.id];
+    const newAnims = detectAndAnimate(match, prev);
+    if (newAnims.length) applyAnimation(match.id, newAnims);
+    const animClass = getAnimClass(match.id);
+    return '<div class="match-card ' + cardClass + ' ' + animClass + '" data-match-id="' + match.id + '">' +
+      '<div class="match-meta"><span class="match-group">' + group + '</span>' +
+      '<span class="match-status ' + getStatusClass(match.status) + '">' + getStatusLabel(match.status) + '</span></div>' +
+      '<div class="match-teams">' +
+      '<div class="team">' + renderCrest(match.homeTeam) + '<div class="team-name">' + match.homeTeam.shortName + '</div></div>' +
+      renderScore(match) +
+      '<div class="team">' + renderCrest(match.awayTeam) + '<div class="team-name">' + match.awayTeam.shortName + '</div></div>' +
+      '</div></div>';
+  }
+
+  function renderSection(title, matches, dotClass, titleClass) {
+    const countLabel = matches.length === 1 ? '1 match' : matches.length + ' matches';
+    const matchesHtml = matches.length === 0
+      ? '<div class="no-matches">No matches</div>'
+      : '<div class="matches-grid">' + matches.map(renderMatch).join('') + '</div>';
+    return '<div class="section"><div class="section-header">' +
+      '<div class="section-dot ' + dotClass + '"></div>' +
+      '<div class="section-title ' + titleClass + '">' + title + '</div>' +
+      '<div class="match-count">' + countLabel + '</div></div>' +
+      matchesHtml + '</div>';
+  }
+
+  let allGroupBlocks = [];
+  let scrollPos = 0;
+  let scrollRAF = null;
+  let lastTimestamp = null;
+  let totalContentHeight = 0;
+  const SCROLL_PX_PER_SEC = 30;
+  let teamsInPlay = new Set();
+
+  function getQualIcon(row, position, allGroups) {
+  const played = row.playedGames;
+  if (played < 3) return '';
+  if (position <= 2) return '<span title="Auto-qualified" style="font-size:0.75em">✅</span>';
+  if (position === 4) return '<span title="Eliminated" style="font-size:0.75em">❌</span>';
+  // Position 3 - check cross-group ranking
+  // Only compare teams that have played all 3 games
+  const all3rd = [];
+  (allGroups || []).forEach(function(g) {
+    const r = g.table.find(function(t){ return t.position === 3 && t.playedGames === 3; });
+    if (r) all3rd.push(r);
+  });
+  const allGroupsDone = (allGroups || []).filter(function(g){
+    return g.table.some(function(t){ return t.position === 3 && t.playedGames === 3; });
+  }).length;
+  if (allGroupsDone < 12) {
+    // Sort available 3rd place teams and show provisional status
+    all3rd.sort(function(a,b){ return b.points-a.points || b.goalDifference-a.goalDifference || b.goalsFor-a.goalsFor; });
+    const idx = all3rd.findIndex(function(r2){ return r2.team.id === row.team.id; });
+    if (idx === -1) return '';
+    return idx < 8
+      ? '<span title="Currently in top 8 third-place teams (provisional)" style="font-size:0.75em">🟢</span>'
+      : '<span title="Currently outside top 8 third-place teams (provisional)" style="font-size:0.75em">🟡</span>';
+  }
+  // All 12 groups have a 3rd-place team with 3 games played
+  all3rd.sort(function(a,b){ return b.points-a.points || b.goalDifference-a.goalDifference || b.goalsFor-a.goalsFor; });
+  const finalIdx = all3rd.findIndex(function(r2){ return r2.team.id === row.team.id; });
+  return finalIdx < 8
+    ? '<span title="Advancing as top 8 third-place team" style="font-size:0.75em">✅</span>'
+    : '<span title="Eliminated - not in top 8 third-place teams" style="font-size:0.75em">❌</span>';
+}
+
+function renderGroupBlock(group, allGroups) {
+    let rows = '';
+    group.table.forEach(function(row, i) {
+      const posClass = i === 0 ? 'qualify-1' : i === 1 ? 'qualify-2' : '';
+      const gd = row.goalDifference > 0 ? '+' + row.goalDifference : row.goalDifference;
+      const live = teamsInPlay.has(row.team.id);
+      const lc = live ? ' in-progress' : '';
+      rows += '<tr class="' + posClass + '">' +
+        '<td class="td-team"><div class="td-team-inner">' +
+        '<span class="s-pos">' + row.position + '</span>' +
+        (row.team.crest ? '<img class="s-crest" src="' + row.team.crest + '" alt="' + row.team.tla + '" onerror="this.style.display=&quot;none&quot;">' : '') +
+        '<span class="s-tla' + lc + '">' + row.team.tla + getQualIcon(row, i+1, allGroups) + '</span>' +
+        '</div></td>' +
+        '<td class="td-stat' + lc + '">' + row.playedGames + '</td>' +
+        '<td class="td-stat' + lc + '">' + gd + '</td>' +
+        '<td class="s-pts' + lc + '">' + row.points + '</td>' +
+        '</tr>';
+    });
+    return '<div class="group-block"><div class="group-label">' + group.group + '</div>' +
+      '<table class="standings-table"><thead><tr>' +
+      '<th class="th-team">Team</th><th>P</th><th>GD</th><th>Pts</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function buildScrollContent() {
+    const html = allGroupBlocks.map(function(g){ return renderGroupBlock(g, allGroupBlocks); }).join('');
+    const inner = document.getElementById('standings-inner');
+    inner.innerHTML = html + html;
+    requestAnimationFrame(function() { totalContentHeight = inner.scrollHeight / 2; });
+  }
+
+  function scrollStep(timestamp) {
+    if (!lastTimestamp) lastTimestamp = timestamp;
+    const delta = (timestamp - lastTimestamp) / 1000;
+    lastTimestamp = timestamp;
+    scrollPos += SCROLL_PX_PER_SEC * delta;
+    if (totalContentHeight > 0 && scrollPos >= totalContentHeight) scrollPos -= totalContentHeight;
+    const inner = document.getElementById('standings-inner');
+    if (inner) inner.style.transform = 'translateY(' + (-scrollPos) + 'px)';
+    scrollRAF = requestAnimationFrame(scrollStep);
+  }
+
+  function startSmoothScroll() {
+    if (scrollRAF) cancelAnimationFrame(scrollRAF);
+    lastTimestamp = null;
+    scrollRAF = requestAnimationFrame(scrollStep);
+  }
+
+  async function loadFixtures() {
+    try {
+      const res = await fetch('/api/fixtures');
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const matches = data.matches || [];
+      teamsInPlay = new Set();
+      matches.forEach(function(m) {
+        if (m.status === 'IN_PLAY' || m.status === 'PAUSED') {
+          teamsInPlay.add(m.homeTeam.id);
+          teamsInPlay.add(m.awayTeam.id);
+        }
+      });
+      document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
+
+      // Group matches by local date dynamically
+      const groups = {};
+      matches.forEach(function(m) {
+        const key = etAdjustedDateStr(m.utcDate);
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(m);
+      });
+
+      const todayStr = localDateStr(new Date());
+      const yesterdayStr = localDateStr(new Date(Date.now() - 86400000));
+      const tomorrowStr = localDateStr(new Date(Date.now() + 86400000));
+
+      function getDayLabel(dateStr) {
+        if (dateStr === yesterdayStr) return { label: 'Yesterday', dot: 'dot-yesterday', cls: '' };
+        if (dateStr === todayStr)     return { label: 'Today',     dot: 'dot-today',     cls: 'today' };
+        if (dateStr === tomorrowStr)  return { label: 'Tomorrow',  dot: 'dot-tomorrow',  cls: '' };
+        const d = new Date(dateStr + 'T12:00:00');
+        const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+        return { label: label, dot: 'dot-tomorrow', cls: '' };
+      }
+
+      const sortedKeys = Object.keys(groups).sort();
+      document.getElementById('fixtures-pane').innerHTML = sortedKeys.map(function(key) {
+        const info = getDayLabel(key);
+        return renderSection(info.label, groups[key], info.dot, info.cls);
+      }).join('');
+      reapplyHeadshots();
+      matches.forEach(function(m){ prevMatches[m.id] = JSON.parse(JSON.stringify(m)); });
+    } catch(err) {
+      document.getElementById('fixtures-pane').innerHTML = '<div class="error-msg">Failed: ' + err.message + '</div>';
+    }
+  }
+
+  async function loadStandings() {
+    try {
+      const res = await fetch('/api/standings');
+      const data = await res.json();
+      allGroupBlocks = (data.standings || []).filter(function(s){ return s.type === 'TOTAL'; });
+      buildScrollContent();
+      if (!scrollRAF) startSmoothScroll();
+    } catch(err) {
+      document.getElementById('standings-inner').innerHTML = '<div class="error-msg">Failed</div>';
+    }
+  }
+
+  loadFixtures();
+  loadStandings();
+  setInterval(loadFixtures, 60000);
+  setInterval(loadStandings, 60000);
+</script>
+</body>
+</html>
