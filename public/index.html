@@ -212,7 +212,7 @@
     background: #111827;
     border: 1px solid #1e2438;
     border-radius: 12px;
-    padding: 12px 10px;
+    padding: 6px 8px 6px;
     position: relative;
     overflow: hidden;
     width: 100%;
@@ -259,7 +259,7 @@
   .match-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 
   .match-group {
-    font-size: 0.7rem;
+    font-size: 1.0rem;
     font-weight: 700;
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -315,12 +315,14 @@
 
   .kickoff-time { font-size: 1.5rem; font-weight: 700; color: #c9a84c; letter-spacing: 1px; white-space: nowrap; }
   .kickoff-label { font-size: 1.25rem; color: #c9a84c; letter-spacing: 1px; text-transform: uppercase; }
-  .tv-channel { font-size: 0.75rem; font-weight: 600; color: #6b7280; letter-spacing: 1px; margin-top: 3px; }
+  .tv-channel { font-size: 0.75rem; font-weight: 600; color: #3b82f6; letter-spacing: 1px; margin-top: 3px; }
   .match-minute { font-size: 0.95rem; color: #ef4444; font-weight: 700; }
 
   .event-line { font-size: 1.0rem; line-height: 1.4; color: #a0aec0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .event-min { color: #4a5568; font-size: 1.0rem; }
   .red-line { color: #fc8181; }
+  .card-icon { display: inline-block; width: 10px; height: 14px; background: #ef4444; border-radius: 2px; transform: rotate(-8deg); margin-right: 3px; vertical-align: middle; }
+  .match-city { font-size: 1.0rem; font-weight: 600; color: #8892a4; letter-spacing: 1px; text-transform: uppercase; text-align: center; width: 100%; padding-top: 0; margin-top: 0; }
 
   .headshot-overlay { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; animation: hsFade 0.5s ease-in; }
   .headshot-img { width:84px; height:84px; border-radius:50%; object-fit:cover; background:#1e2438; animation: hsGlow 1.5s ease-in-out infinite; }
@@ -388,7 +390,43 @@
   setInterval(updateClock, 1000);
   updateClock();
 
-  function localDateStr(d) {
+  function getNextKickoffTime(matches) {
+  const now = Date.now();
+  const upcoming = matches
+    .filter(function(m) { return m.status === 'TIMED' || m.status === 'SCHEDULED'; })
+    .map(function(m) { return new Date(m.utcDate).getTime(); })
+    .filter(function(t) { return t > now; })
+    .sort(function(a,b) { return a-b; });
+  return upcoming.length ? upcoming[0] : null;
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return '0:00:00';
+  const totalSecs = Math.floor(ms / 1000);
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return h + ':' + String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+let nextKickoff = null;
+let allMatchesCache = [];
+
+function updateCountdowns() {
+  const now = Date.now();
+  const ms = nextKickoff - now;
+  document.querySelectorAll('.countdown-display').forEach(function(el) {
+    if (ms <= 0) {
+      el.textContent = 'KICK OFF';
+    } else {
+      el.textContent = formatCountdown(ms);
+    }
+  });
+}
+
+setInterval(updateCountdowns, 1000);
+
+function localDateStr(d) {
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
 
@@ -403,13 +441,14 @@
   }
 
   function getDateLabel(utcDateStr) {
-    const matchDay = localDateStr(new Date(utcDateStr));
+    const matchDay = etAdjustedDateStr(utcDateStr);
     const today = new Date();
-    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
-    const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-    if (matchDay === localDateStr(yesterday)) return 'yesterday';
-    if (matchDay === localDateStr(today)) return 'today';
-    if (matchDay === localDateStr(tomorrow)) return 'tomorrow';
+    const yesterdayStr = localDateStr(new Date(today.getTime() - 86400000));
+    const todayStr = localDateStr(today);
+    const tomorrowStr = localDateStr(new Date(today.getTime() + 86400000));
+    if (matchDay === yesterdayStr) return 'yesterday';
+    if (matchDay === todayStr) return 'today';
+    if (matchDay === tomorrowStr) return 'tomorrow';
     return 'other';
   }
 
@@ -551,7 +590,7 @@ function applyAnimation(matchId, animClasses) {
     const g = goals && goals[side] ? goals[side] : [];
     const r = redCards && redCards[side] ? redCards[side] : [];
     g.forEach(function(x){ items += '<div class="event-line">&#9917; ' + x.name + ' <span class="event-min">' + x.minute + '</span></div>'; });
-    r.forEach(function(x){ items += '<div class="event-line red-line">🟥 ' + x.name + ' <span class="event-min">' + x.minute + '</span></div>'; });
+    r.forEach(function(x){ items += '<div class="event-line red-line"><span class="card-icon"></span>' + x.name + ' <span class="event-min">' + x.minute + '</span></div>'; });
     return items;
   }
 
@@ -572,16 +611,35 @@ function applyAnimation(matchId, animClasses) {
         (isLive && match.minute ? '<div class="match-minute">' + match.minute + "'</div>" : '') +
         tv + '</div>' +
         '<div class="events-col events-away" data-match-id="' + match.id + '" data-side="away">' + awayEvents + '</div>' +
-        '</div></div>';
+        '</div>' + (match.city ? '<div class="match-city">🏟️ ' + match.city + '</div>' : '') + '</div>';
     }
 
+    const matchTime = new Date(match.utcDate).getTime();
+    const isNext = nextKickoff && matchTime === nextKickoff;
+    const kickoffLabel = isNext
+      ? '<div class="countdown-label">Countdown to Kickoff</div><div class="countdown-digits countdown-display">--:--:--</div>'
+      : '';
     return '<div class="score-block"><div class="score-center">' +
       '<div class="kickoff-time">' + formatKickoff(match.utcDate) + '</div>' +
-      '<div class="kickoff-label">Kick Off</div>' +
-      tv + '</div></div>';
+      kickoffLabel +
+      tv + '</div>' + (match.city ? '<div class="match-city">🏟️ ' + match.city + '</div>' : '') + '</div>';
   }
 
   let prevMatches = {};
+
+  function fitTeamNames() {
+    document.querySelectorAll('.team-name').forEach(function(el) {
+      const text = el.textContent.trim();
+      if (text.indexOf(' ') !== -1) { el.style.whiteSpace = ''; return; } // multi-word: wrapping is fine
+      el.style.whiteSpace = 'nowrap';
+      let size = 1.25; // rem, matches default
+      el.style.fontSize = size + 'rem';
+      while (el.scrollWidth > el.clientWidth && size > 0.7) {
+        size -= 0.05;
+        el.style.fontSize = size + 'rem';
+      }
+    });
+  }
 
   function renderMatch(match) {
     const day = getDateLabel(match.utcDate);
@@ -715,6 +773,7 @@ function renderGroupBlock(group, allGroups) {
           teamsInPlay.add(m.awayTeam.id);
         }
       });
+      nextKickoff = getNextKickoffTime(matches);
       document.getElementById('last-updated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 
       // Group matches by local date dynamically
@@ -744,6 +803,7 @@ function renderGroupBlock(group, allGroups) {
         return renderSection(info.label, groups[key], info.dot, info.cls);
       }).join('');
       reapplyHeadshots();
+      fitTeamNames();
       matches.forEach(function(m){ prevMatches[m.id] = JSON.parse(JSON.stringify(m)); });
     } catch(err) {
       document.getElementById('fixtures-pane').innerHTML = '<div class="error-msg">Failed: ' + err.message + '</div>';

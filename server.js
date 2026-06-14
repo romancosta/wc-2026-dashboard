@@ -49,6 +49,7 @@ async function fetchESPN() {
     fetchESPNForDate(getESPNDateStr(0)),
     fetchESPNForDate(getESPNDateStr(1)),
     fetchESPNForDate(getESPNDateStr(2)),
+    fetchESPNForDate(getESPNDateStr(3)),
   ]);
 
   const allEvents = [
@@ -81,7 +82,9 @@ async function fetchESPN() {
       const athlete = play.athletesInvolved?.[0];
       const teamId = play.team?.id;
       const minute = play.clock?.displayValue || '';
-      const name = athlete?.shortName || '';
+      let name = (athlete?.shortName || '').replace(/\b(J[uú]nior)\b/gi, 'Jr.');
+
+      name = name.replace(/^V[ií]n[ií]cius\s+Jr\./i, 'Vini Jr.');
       const isHome = teamId === home?.team?.id;
       const side = isHome ? 'home' : 'away';
       if (play.scoringPlay) {
@@ -101,6 +104,13 @@ async function fetchESPN() {
       homeName: home?.team?.shortDisplayName,
       awayName: away?.team?.shortDisplayName,
       tv: tvChannels.join(' / ') || null,
+      city: (() => {
+        if (!comp.venue || !comp.venue.address) return null;
+        const addr = comp.venue.address;
+        const full = addr.city && addr.state ? `${addr.city}, ${addr.state}` : (addr.city || null);
+        if (full && CITY_ALIASES[full]) return CITY_ALIASES[full];
+        return addr.city || null;
+      })(),
       goals,
       redCards,
     };
@@ -146,11 +156,24 @@ async function fetchStandings() {
   return data;
 }
 
+const CITY_ALIASES = {
+  'Inglewood, California': 'Los Angeles',
+  'Santa Clara, California': 'San Francisco Bay Area',
+  'East Rutherford, New Jersey': 'New York New Jersey',
+  'Foxborough, Massachusetts': 'Boston',
+  'Houston, Texas': 'Houston',
+  'Arlington, Texas': 'Dallas',
+  'Philadelphia, Pennsylvania': 'Philadelphia',
+  'Atlanta, Georgia': 'Atlanta',
+};
+
+function normalize(str) { return str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+
 function matchTeams(fbdMatch, espnEntry) {
-  const fbdHome = fbdMatch.homeTeam.shortName.toLowerCase();
-  const fbdAway = fbdMatch.awayTeam.shortName.toLowerCase();
-  const espnHome = (espnEntry.homeName || '').toLowerCase();
-  const espnAway = (espnEntry.awayName || '').toLowerCase();
+  const fbdHome = normalize(fbdMatch.homeTeam.shortName);
+  const fbdAway = normalize(fbdMatch.awayTeam.shortName);
+  const espnHome = normalize(espnEntry.homeName || '');
+  const espnAway = normalize(espnEntry.awayName || '');
   const homeMatch = fbdHome.includes(espnHome.slice(0,4)) || espnHome.includes(fbdHome.slice(0,4));
   const awayMatch = fbdAway.includes(espnAway.slice(0,4)) || espnAway.includes(fbdAway.slice(0,4));
   return homeMatch && awayMatch;
@@ -183,8 +206,8 @@ function selectWindow(matches) {
   if (anchorIdx === -1) anchorIdx = 0;
 
   // Build window: 5 before, anchor, 4 after
-  const BEFORE = 5;
-  const AFTER = 4;
+  const BEFORE = 4;
+  const AFTER = 5;
   const total = 10;
 
   let start = anchorIdx - BEFORE;
@@ -230,6 +253,7 @@ app.get('/api/fixtures', async (req, res) => {
       match.goals = espnEntry.goals;
       match.redCards = espnEntry.redCards;
       match.tv = espnEntry.tv;
+      match.city = espnEntry.city;
     }
 
     const window = selectWindow(allMatches);
