@@ -165,6 +165,8 @@ const CITY_ALIASES = {
   'Arlington, Texas': 'Dallas',
   'Philadelphia, Pennsylvania': 'Philadelphia',
   'Atlanta, Georgia': 'Atlanta',
+  'Miami Gardens, Florida': 'Miami',
+  'Seattle, Washington': 'Seattle',
 };
 
 function normalize(str) { return str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
