@@ -260,6 +260,9 @@ app.get('/api/fixtures', async (req, res) => {
     res.json({ ...fbdData, matches: window });
   } catch (err) {
     console.error(err);
+    if (fbdCache) {
+      return res.json({ ...fbdCache, matches: selectWindow(fbdCache.matches || []) });
+    }
     res.status(500).json({ error: 'Failed to fetch fixtures' });
   }
 });
