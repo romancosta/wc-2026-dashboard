@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 const path = require('path');
+const os = require('os');
+const QRCode = require('qrcode');
 
 const app = express();
 const API_KEY = process.env.FOOTBALL_DATA_API_KEY;
@@ -9,6 +11,7 @@ const BASE_URL = 'https://api.football-data.org/v4';
 const WC_ID = 2000;
 
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
 
 // Cache
 let espnCache = null;
@@ -18,6 +21,11 @@ let fbdLastFetch = 0;
 let standingsCache = null;
 const matchFinishedAt = {};
 let standingsLastFetch = 0;
+let currentFocus = null;
+let focusTimer = null;
+const FOCUS_TIMEOUT_MS = 2 * 60 * 1000;
+function clearFocusTimer() { if (focusTimer) { clearTimeout(focusTimer); focusTimer = null; } }
+function armFocusTimer() { clearFocusTimer(); focusTimer = setTimeout(function(){ currentFocus = null; focusTimer = null; }, FOCUS_TIMEOUT_MS); }
 
 function isQuietHours() {
   const now = new Date();
@@ -132,7 +140,7 @@ async function fetchFBD() {
   const fmt = d => d.toISOString().split('T')[0];
 
   const res = await fetch(
-    `${BASE_URL}/competitions/${WC_ID}/matches?dateFrom=${fmt(dateFrom)}&dateTo=${fmt(dateTo)}`,
+    `${BASE_URL}/competitions/${WC_ID}/matches`,
     { headers: { 'X-Auth-Token': API_KEY } }
   );
   const remaining = res.headers.get('X-Requests-Available-Minute');
@@ -167,11 +175,13 @@ const CITY_ALIASES = {
   'Atlanta, Georgia': 'Atlanta',
   'Miami Gardens, Florida': 'Miami',
   'Seattle, Washington': 'Seattle',
+  'Kansas City, Missouri': 'Kansas City',
 };
 
 function normalize(str) { return str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 
 function matchTeams(fbdMatch, espnEntry) {
+  if (!fbdMatch.homeTeam || !fbdMatch.homeTeam.shortName || !fbdMatch.awayTeam || !fbdMatch.awayTeam.shortName) return false;
   const fbdHome = normalize(fbdMatch.homeTeam.shortName);
   const fbdAway = normalize(fbdMatch.awayTeam.shortName);
   const espnHome = normalize(espnEntry.homeName || '');
@@ -179,6 +189,14 @@ function matchTeams(fbdMatch, espnEntry) {
   const homeMatch = fbdHome.includes(espnHome.slice(0,4)) || espnHome.includes(fbdHome.slice(0,4));
   const awayMatch = fbdAway.includes(espnAway.slice(0,4)) || espnAway.includes(fbdAway.slice(0,4));
   return homeMatch && awayMatch;
+}
+
+function etDateStr(utcDateStr) {
+  const d = new Date(utcDateStr);
+  const etMs = d.getTime() - (4 * 60 * 60 * 1000);
+  const etDate = new Date(etMs);
+  if (etDate.getUTCHours() < 1) etDate.setUTCDate(etDate.getUTCDate() - 1);
+  return etDate.getUTCFullYear() + '-' + String(etDate.getUTCMonth() + 1).padStart(2, '0') + '-' + String(etDate.getUTCDate()).padStart(2, '0');
 }
 
 function selectWindow(matches) {
@@ -258,8 +276,15 @@ app.get('/api/fixtures', async (req, res) => {
       match.city = espnEntry.city;
     }
 
-    const window = selectWindow(allMatches);
-    res.json({ ...fbdData, matches: window });
+    let window;
+    if (currentFocus && currentFocus.type === 'date') {
+      window = allMatches.filter(function(m){ return etDateStr(m.utcDate) === currentFocus.date; }).sort(function(a,b){ return new Date(a.utcDate) - new Date(b.utcDate); });
+    } else if (currentFocus) {
+      window = allMatches.filter(function(m){ return (m.homeTeam.id === currentFocus.id) || (m.awayTeam.id === currentFocus.id); }).sort(function(a,b){ return new Date(a.utcDate) - new Date(b.utcDate); });
+    } else {
+      window = selectWindow(allMatches);
+    }
+    res.json({ ...fbdData, matches: window, focus: currentFocus });
   } catch (err) {
     console.error(err);
     if (fbdCache) {
@@ -385,6 +410,52 @@ app.get('/api/standings', async (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch standings' });
   }
+});
+
+function getLocalIP() {
+  const ifaces = os.networkInterfaces();
+  for (const name of Object.keys(ifaces)) {
+    for (const iface of ifaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+    }
+  }
+  return null;
+}
+
+app.get('/api/control', function(req, res){ res.json({ focus: currentFocus }); });
+app.post('/api/control', function(req, res){
+  const b = req.body || {};
+  if (b.clear) { currentFocus = null; clearFocusTimer(); return res.json({ focus: null }); }
+  if (b.date) {
+    currentFocus = { type: 'date', date: b.date, banner: 'Showing games on ' + (b.label || b.date) };
+    armFocusTimer();
+    return res.json({ focus: currentFocus });
+  }
+  if (b.id === undefined || b.id === null) { currentFocus = null; clearFocusTimer(); return res.json({ focus: null }); }
+  currentFocus = { type: 'team', id: b.id, name: b.name || String(b.id), banner: 'Showing ' + (b.name || b.id) + ' only' };
+  armFocusTimer();
+  res.json({ focus: currentFocus });
+});
+app.get('/api/qr', async function(req, res){
+  try {
+    const host = getLocalIP() || (os.hostname() + '.local');
+    const url = 'http://' + host + ':3000/remote.html';
+    const svg = await QRCode.toString(url, { type: 'svg', margin: 1, color: { dark: '#0a0e1a', light: '#ffffff' } });
+    res.json({ url: url, svg: svg });
+  } catch(e) { res.status(500).json({ error: 'qr failed' }); }
+});
+app.get('/api/teams', async function(req, res){
+  try {
+    const data = await fetchFBD();
+    const teams = {};
+    (data.matches || []).forEach(function(m){
+      if (m.homeTeam && m.homeTeam.id) teams[m.homeTeam.id] = m.homeTeam;
+      if (m.awayTeam && m.awayTeam.id) teams[m.awayTeam.id] = m.awayTeam;
+    });
+    const list = Object.values(teams).filter(function(t){ return t.name; }).sort(function(a,b){ return (a.shortName||a.name).localeCompare(b.shortName||b.name); });
+    const rs = data.resultSet || {};
+    res.json({ teams: list, firstDate: rs.first || null, lastDate: rs.last || null });
+  } catch(e){ res.status(500).json({ error: 'failed' }); }
 });
 
 app.listen(3000, () => console.log('Dashboard running on http://localhost:3000'));

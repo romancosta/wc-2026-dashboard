@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup Dashboard Remote</title>
+<style>
+  body { background:#0a0e1a; color:#fff; font-family:sans-serif; margin:0 auto; padding:16px; max-width:600px; }
+  h1 { color:#c9a84c; font-size:1.3rem; text-align:center; margin-bottom:6px; }
+  #status { text-align:center; color:#8892a4; margin-bottom:14px; font-size:0.95rem; }
+  button { font-family:inherit; }
+  #reset { display:block; width:100%; padding:14px; margin-bottom:16px; background:#3b82f6; color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:700; }
+  .mode-tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .mode-tabs button { flex:1; padding:12px; background:#111827; color:#8892a4; border:1px solid #1e2438; border-radius:8px; font-size:1rem; font-weight:700; }
+  .mode-tabs button.active { background:#1a1f35; color:#c9a84c; border-color:#c9a84c; }
+  .hidden { display:none; }
+  #dd-toggle { width:100%; display:flex; align-items:center; gap:10px; padding:14px; background:#111827; border:1px solid #1e2438; border-radius:8px; color:#e2e8f0; font-size:1rem; text-align:left; }
+  #dd-label { display:flex; align-items:center; gap:10px; }
+  #dd-label img { width:30px; height:22px; object-fit:contain; }
+  #dd-toggle .chev { margin-left:auto; color:#8892a4; }
+  #dd-list { margin-top:8px; max-height:60vh; overflow-y:auto; border:1px solid #1e2438; border-radius:8px; background:#080c17; }
+  .dd-item { display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #111827; color:#e2e8f0; font-size:1rem; }
+  .dd-item:last-child { border-bottom:none; }
+  .dd-item img { width:30px; height:22px; object-fit:contain; flex-shrink:0; }
+  .dd-item.active { background:rgba(34,197,94,0.12); color:#22c55e; }
+  #date-input { width:100%; padding:14px; background:#111827; border:1px solid #1e2438; border-radius:8px; color:#e2e8f0; font-size:1rem; }
+  #date-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.9; cursor: pointer; }
+  .hint { color:#4a5568; font-size:0.8rem; margin-top:8px; text-align:center; }
+  button { transition: transform 0.08s ease, background 0.15s ease, filter 0.15s ease, color 0.15s ease; -webkit-tap-highlight-color: transparent; }
+  button:active { transform: scale(0.96); }
+  #reset:active { filter: brightness(0.92); transform: scale(0.99); }
+  #dd-toggle:active { background:#161d2e; }
+  .dd-item { transition: background 0.15s ease, color 0.15s ease; }
+  .dd-item:active { background: rgba(201,168,76,0.18); }
+  .dd-item.active { animation: pickPulse 0.4s ease; }
+  #dd-list:not(.hidden) { animation: ddOpen 0.16s ease; }
+  #dd-toggle .chev { transition: transform 0.18s ease; }
+  #country-panel:has(#dd-list:not(.hidden)) .chev { transform: rotate(180deg); }
+  @keyframes ddOpen { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: translateY(0); } }
+  @keyframes pickPulse { 0% { background: rgba(34,197,94,0.45); } 100% { background: rgba(34,197,94,0.12); } }
+</style>
+</head>
+<body>
+<h1>World Cup Dashboard Remote</h1>
+<div id="status">Loading...</div>
+<button id="reset">Return to Default (Show All)</button>
+
+<div class="mode-tabs">
+  <button id="tab-country" class="active">By Country</button>
+  <button id="tab-date">By Date</button>
+</div>
+
+<div id="country-panel">
+  <button id="dd-toggle"><span id="dd-label">Select a country</span><span class="chev">&#9662;</span></button>
+  <div id="dd-list" class="hidden"></div>
+</div>
+
+<div id="date-panel" class="hidden">
+  <input type="date" id="date-input">
+  <div class="hint" id="date-hint"></div>
+</div>
+
+<script>
+let teams = [];
+let lastRemoteKey = undefined;
+function keyOf(f){ return f ? (f.type === 'date' ? 'd:' + f.date : 't:' + f.id) : null; }
+
+function setStatus(focus) {
+  document.getElementById('status').textContent = focus ? focus.banner : 'Showing: All matches';
+  document.querySelectorAll('.dd-item').forEach(function(it){
+    it.classList.toggle('active', focus && focus.type === 'team' && parseInt(it.dataset.id) === focus.id);
+  });
+  if (focus && focus.type === 'team') { setToggleLabel(teams.find(function(x){ return x.id === focus.id; })); }
+  else { setToggleLabel(null); }
+}
+
+function setToggleLabel(t) {
+  const lbl = document.getElementById('dd-label');
+  if (t) { lbl.innerHTML = (t.crest ? '<img src="' + t.crest + '">' : '') + '<span>' + (t.shortName||t.name) + '</span>'; }
+  else { lbl.textContent = 'Select a country'; }
+}
+
+async function post(body) {
+  const res = await fetch('/api/control', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+  const focus = (await res.json()).focus;
+  setStatus(focus);
+  lastRemoteKey = keyOf(focus);
+}
+
+async function pollFocus() {
+  try {
+    const ctrl = await fetch('/api/control').then(function(r){ return r.json(); });
+    const k = keyOf(ctrl.focus);
+    if (k === lastRemoteKey) return;
+    lastRemoteKey = k;
+    setStatus(ctrl.focus);
+    if (!ctrl.focus) { document.getElementById('date-input').value = ''; }
+  } catch(e) {}
+}
+setInterval(pollFocus, 3000);
+
+function buildDropdown() {
+  document.getElementById('dd-list').innerHTML = teams.map(function(t){
+    const crest = t.crest ? '<img src="' + t.crest + '">' : '';
+    return '<div class="dd-item" data-id="' + t.id + '">' + crest + '<span>' + (t.shortName||t.name) + '</span></div>';
+  }).join('');
+  document.querySelectorAll('.dd-item').forEach(function(it){
+    it.addEventListener('click', function(){
+      const id = parseInt(it.dataset.id);
+      const t = teams.find(function(x){ return x.id === id; });
+      document.getElementById('dd-list').classList.add('hidden');
+      post({ id: id, name: t ? (t.shortName||t.name) : String(id) });
+    });
+  });
+}
+
+document.getElementById('dd-toggle').addEventListener('click', function(){
+  document.getElementById('dd-list').classList.toggle('hidden');
+});
+document.getElementById('tab-country').addEventListener('click', function(){
+  this.classList.add('active'); document.getElementById('tab-date').classList.remove('active');
+  document.getElementById('country-panel').classList.remove('hidden');
+  document.getElementById('date-panel').classList.add('hidden');
+});
+document.getElementById('tab-date').addEventListener('click', function(){
+  this.classList.add('active'); document.getElementById('tab-country').classList.remove('active');
+  document.getElementById('date-panel').classList.remove('hidden');
+  document.getElementById('country-panel').classList.add('hidden');
+});
+document.getElementById('date-input').addEventListener('change', function(){
+  const v = this.value;
+  if (!v) return;
+  const label = new Date(v + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' });
+  post({ date: v, label: label });
+});
+document.getElementById('reset').addEventListener('click', function(){ post({ clear: true }); });
+
+(async function(){
+  const meta = await fetch('/api/teams').then(function(r){ return r.json(); });
+  teams = meta.teams || [];
+  buildDropdown();
+  const di = document.getElementById('date-input');
+  if (meta.firstDate) di.min = meta.firstDate;
+  if (meta.lastDate) di.max = meta.lastDate;
+  document.getElementById('date-hint').textContent = (meta.firstDate && meta.lastDate) ? ('Tournament runs ' + meta.firstDate + ' to ' + meta.lastDate) : '';
+  const ctrl = await fetch('/api/control').then(function(r){ return r.json(); });
+  setStatus(ctrl.focus);
+  lastRemoteKey = keyOf(ctrl.focus);
+  if (ctrl.focus && ctrl.focus.type === 'date') { document.getElementById('tab-date').click(); di.value = ctrl.focus.date; }
+})();
+</script>
+</body>
+</html>

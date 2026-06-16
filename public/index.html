@@ -34,7 +34,7 @@
   .trophy { font-size: 2rem; }
 
   .header-title h1 {
-    font-size: 3.5rem;
+    font-size: 3.0rem;
     font-weight: 900;
     color: #c9a84c;
     letter-spacing: 2px;
@@ -49,6 +49,11 @@
   }
 
   .header-right { text-align: right; }
+  .header-qr { display:flex; flex-direction:column; align-items:center; gap:4px; }
+  .header-qr .qr-box { background:#fff; padding:6px; border-radius:8px; line-height:0; }
+  .header-qr .qr-box svg { width:96px; height:96px; display:block; }
+  .header-qr .qr-cap { font-size:0.85rem; font-weight:700; color:#c9a84c; letter-spacing:1px; text-transform:uppercase; }
+  .header-qr .qr-url { font-size:0.7rem; color:#8892a4; }
 
   .clock {
     font-size: 1.6rem;
@@ -167,6 +172,9 @@
   .s-pos { color: #4a5568; font-size: 0.75rem; min-width: 12px; }
   .qualify-1 { border-left: 3px solid #22c55e; }
   .qualify-2 { border-left: 3px solid #3b82f6; }
+  .standings-table tr.focus-row td { background: rgba(201,168,76,0.20); }
+  .standings-table tr.focus-row .s-tla { color:#c9a84c; }
+  .standings-table tr.focus-row { border-left: 3px solid #c9a84c; }
 
   .fixtures-pane {
     width: 740px;
@@ -337,6 +345,7 @@
   @keyframes hsGlowText { 0%,100%{text-shadow:0 0 4px #22c55e} 50%{text-shadow:0 0 16px #22c55e} }
 
   .no-matches { color: #4a5568; font-size: 0.9rem; padding: 20px; text-align: center; border: 1px dashed #1e2438; border-radius: 12px; }
+  .focus-banner { background:#1a1f35; border:1px solid #c9a84c; border-radius:10px; padding:10px 14px; margin-bottom:16px; color:#c9a84c; font-size:1.3rem; font-weight:700; letter-spacing:1px; text-transform:uppercase; text-align:center; }
 
   .loading { display: flex; align-items: center; justify-content: center; height: 200px; flex-direction: column; gap: 16px; }
 
@@ -346,7 +355,7 @@
 
   .error-msg { color: #ef4444; text-align: center; padding: 40px; font-size: 0.85rem; }
 
-  footer { text-align: center; padding: 8px; color: #2d3748; font-size: 0.6rem; letter-spacing: 1px; text-transform: uppercase; border-top: 1px solid #1e2438; flex-shrink: 0; }
+  footer { text-align: center; padding: 8px; color: #8892a4  font-size: 0.85rem; letter-spacing: 1px; text-transform: uppercase; border-top: 1px solid #1e2438; flex-shrink: 0; }
 </style>
 </head>
 <body>
@@ -359,6 +368,7 @@
       <p>USA &bull; Canada &bull; Mexico</p>
     </div>
   </div>
+  <div class="header-qr" id="header-qr"></div>
   <div class="header-right">
     <div class="clock" id="clock">--:--</div>
     <div class="date-display" id="date-display">Loading...</div>
@@ -383,7 +393,7 @@
   </div>
 </div>
 
-<footer>Auto-refreshes every 30s &bull; football-data.org + ESPN</footer>
+<footer><span id="footer-info">Auto-refreshes every 30s &bull; football-data.org + ESPN</span></footer>
 
 <script>
   function updateClock() {
@@ -415,6 +425,10 @@ function formatCountdown(ms) {
 
 let nextKickoff = null;
 let allMatchesCache = [];
+let lastFocusKey = null;
+let currentFocusObj = null;
+const REFRESH_MS = 60000;
+function focusKey(f){ return f ? (f.type === 'date' ? 'd:' + f.date : 't:' + f.id) : null; }
 
 function updateCountdowns() {
   const now = Date.now();
@@ -762,7 +776,7 @@ function renderGroupBlock(group, allGroups) {
       const gd = row.goalDifference > 0 ? '+' + row.goalDifference : row.goalDifference;
       const live = teamsInPlay.has(row.team.id);
       const lc = live ? ' in-progress' : '';
-      rows += '<tr class="' + posClass + '">' +
+      rows += '<tr class="' + posClass + '" data-team-id="' + row.team.id + '">' +
         '<td class="td-team"><div class="td-team-inner">' +
         '<span class="s-pos">' + row.position + '</span>' +
         (row.team.crest ? '<img class="s-crest" src="' + row.team.crest + '" alt="' + row.team.tla + '" onerror="this.style.display=&quot;none&quot;">' : '') +
@@ -777,6 +791,25 @@ function renderGroupBlock(group, allGroups) {
       '<table class="standings-table"><thead><tr>' +
       '<th class="th-team">Team</th><th>P</th><th>GD</th><th>Pts</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  }
+
+  function applyStandingsFocus() {
+    const inner = document.getElementById('standings-inner');
+    if (!inner) return;
+    inner.querySelectorAll('.focus-row').forEach(function(r){ r.classList.remove('focus-row'); });
+    const ff = currentFocusObj;
+    if (ff && ff.type === 'team') {
+      const rows = inner.querySelectorAll('[data-team-id="' + ff.id + '"]');
+      if (rows.length) {
+        rows.forEach(function(r){ r.classList.add('focus-row'); });
+        const block = rows[0].closest('.group-block');
+        if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
+        scrollPos = block ? Math.max(0, block.offsetTop - 8) : scrollPos;
+        inner.style.transform = 'translateY(' + (-scrollPos) + 'px)';
+        return;
+      }
+    }
+    if (!scrollRAF) startSmoothScroll();
   }
 
   function buildScrollContent() {
@@ -841,14 +874,19 @@ function renderGroupBlock(group, allGroups) {
       }
 
       const sortedKeys = Object.keys(groups).sort();
-      document.getElementById('fixtures-pane').innerHTML = sortedKeys.map(function(key) {
+      const focusBanner = data.focus ? '<div class="focus-banner">' + (data.focus.banner || ('Showing ' + (data.focus.name || '') + ' only')) + '</div>' : '';
+      const sectionsHtml = sortedKeys.map(function(key) {
         const info = getDayLabel(key);
         return renderSection(info.label, groups[key], info.dot, info.cls);
-      }).join('');
+      }).join('') || '<div class="no-matches">No matches</div>';
+      document.getElementById('fixtures-pane').innerHTML = focusBanner + sectionsHtml;
       reapplyHeadshots();
       fitTeamNames();
       fitEventLines();
       matches.forEach(function(m){ prevMatches[m.id] = JSON.parse(JSON.stringify(m)); });
+      lastFocusKey = focusKey(data.focus);
+      currentFocusObj = data.focus || null;
+      applyStandingsFocus();
     } catch(err) {
       console.error('loadFixtures failed:', err);
     }
@@ -860,16 +898,42 @@ function renderGroupBlock(group, allGroups) {
       const data = await res.json();
       allGroupBlocks = (data.standings || []).filter(function(s){ return s.type === 'TOTAL'; });
       buildScrollContent();
-      if (!scrollRAF) startSmoothScroll();
+      applyStandingsFocus();
     } catch(err) {
       document.getElementById('standings-inner').innerHTML = '<div class="error-msg">Failed</div>';
     }
   }
 
+  async function loadQR() {
+    try {
+      const res = await fetch('/api/qr');
+      const d = await res.json();
+      if (!d.svg) return;
+      document.getElementById('header-qr').innerHTML = '<div class="qr-box">' + d.svg + '</div><div class="qr-cap">Scan to control</div><div class="qr-url">' + d.url.replace('http://','') + '</div>';
+    } catch(e) {}
+  }
+
+  function loadInfo() {
+    document.getElementById('footer-info').innerHTML = 'Auto-refreshes every ' + Math.round(REFRESH_MS / 1000) + 's &bull; football-data.org + ESPN';
+  }
+
+  async function checkFocus() {
+    try {
+      const res = await fetch('/api/control');
+      const d = await res.json();
+      const k = focusKey(d.focus);
+      if (k !== lastFocusKey) { lastFocusKey = k; loadFixtures(); }
+    } catch(e) {}
+  }
+
+  loadInfo();
+  loadQR();
   loadFixtures();
   loadStandings();
-  setInterval(loadFixtures, 60000);
-  setInterval(loadStandings, 60000);
+  setInterval(loadFixtures, REFRESH_MS);
+  setInterval(loadStandings, REFRESH_MS);
+  setInterval(loadQR, 300000);
+  setInterval(checkFocus, 3000);
 </script>
 </body>
 </html>
