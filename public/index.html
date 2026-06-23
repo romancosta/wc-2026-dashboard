@@ -122,6 +122,7 @@
 
   .group-block { margin-bottom: 22px; padding-bottom: 8px; border-bottom: 1px solid #1e2438; }
 
+  .group-label.focus-group-label { color: #c9a84c; background: rgba(201,168,76,0.15); border-left: 3px solid #c9a84c; }
   .group-label {
     font-size: 1.75rem;
     font-weight: 700;
@@ -428,7 +429,7 @@ let allMatchesCache = [];
 let lastFocusKey = null;
 let currentFocusObj = null;
 const REFRESH_MS = 60000;
-function focusKey(f){ return f ? (f.type === 'date' ? 'd:' + f.date : 't:' + f.id) : null; }
+function focusKey(f){ return f ? (f.type === 'date' ? 'd:' + f.date : f.type === 'group' ? 'g:' + f.group : 't:' + f.id) : null; }
 
 function updateCountdowns() {
   const now = Date.now();
@@ -703,12 +704,13 @@ function applyAnimation(matchId, animClasses) {
     const isLive = match.status === 'IN_PLAY';
     const cardClass = isLive ? 'live' : day;
     const group = match.group ? match.group.replace('GROUP_','Group ') : match.stage.replace(/_/g,' ');
+    const groupLabel = match.matchNumber ? group + ' • M' + match.matchNumber : group;
     const prev = prevMatches[match.id];
     const newAnims = detectAndAnimate(match, prev);
     if (newAnims.length) applyAnimation(match.id, newAnims);
     const animClass = getAnimClass(match.id);
     return '<div class="match-card ' + cardClass + ' ' + animClass + '" data-match-id="' + match.id + '">' +
-      '<div class="match-meta"><span class="match-group">' + group + '</span>' +
+      '<div class="match-meta"><span class="match-group">' + groupLabel + '</span>' +
       '<span class="match-status ' + getStatusClass(match.status) + '">' + getStatusLabel(match.status) + '</span></div>' +
       '<div class="match-teams">' +
       '<div class="team ' + getSideAnimClass(match.id, 'home') + '">' + renderCrest(match.homeTeam) + '<div class="team-name">' + match.homeTeam.shortName + '</div></div>' +
@@ -787,7 +789,7 @@ function renderGroupBlock(group, allGroups) {
         '<td class="s-pts' + lc + '">' + row.points + '</td>' +
         '</tr>';
     });
-    return '<div class="group-block"><div class="group-label">' + group.group + '</div>' +
+    return '<div class="group-block" data-group="' + group.group.split(/[\s_]/).pop() + '"><div class="group-label">' + group.group + '</div>' +
       '<table class="standings-table"><thead><tr>' +
       '<th class="th-team">Team</th><th>P</th><th>GD</th><th>Pts</th>' +
       '</tr></thead><tbody>' + rows + '</tbody></table></div>';
@@ -797,6 +799,7 @@ function renderGroupBlock(group, allGroups) {
     const inner = document.getElementById('standings-inner');
     if (!inner) return;
     inner.querySelectorAll('.focus-row').forEach(function(r){ r.classList.remove('focus-row'); });
+    inner.querySelectorAll('.focus-group-label').forEach(function(r){ r.classList.remove('focus-group-label'); });
     const ff = currentFocusObj;
     if (ff && ff.type === 'team') {
       const rows = inner.querySelectorAll('[data-team-id="' + ff.id + '"]');
@@ -805,6 +808,16 @@ function renderGroupBlock(group, allGroups) {
         const block = rows[0].closest('.group-block');
         if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
         scrollPos = block ? Math.max(0, block.offsetTop - 8) : scrollPos;
+        inner.style.transform = 'translateY(' + (-scrollPos) + 'px)';
+        return;
+      }
+    } else if (ff && ff.type === 'group') {
+      const blocks = inner.querySelectorAll('[data-group="' + ff.group + '"]');
+      if (blocks.length) {
+        const block = blocks[0];
+        const lbl = block.querySelector('.group-label'); if (lbl) lbl.classList.add('focus-group-label');
+        if (scrollRAF) { cancelAnimationFrame(scrollRAF); scrollRAF = null; }
+        scrollPos = Math.max(0, block.offsetTop - 8);
         inner.style.transform = 'translateY(' + (-scrollPos) + 'px)';
         return;
       }

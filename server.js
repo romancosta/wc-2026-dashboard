@@ -4,6 +4,7 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const path = require('path');
 const os = require('os');
 const QRCode = require('qrcode');
+const { exec } = require('child_process');
 
 const app = express();
 const API_KEY = process.env.FOOTBALL_DATA_API_KEY;
@@ -25,7 +26,8 @@ let currentFocus = null;
 let focusTimer = null;
 const FOCUS_TIMEOUT_MS = 2 * 60 * 1000;
 function clearFocusTimer() { if (focusTimer) { clearTimeout(focusTimer); focusTimer = null; } }
-function armFocusTimer() { clearFocusTimer(); focusTimer = setTimeout(function(){ currentFocus = null; focusTimer = null; }, FOCUS_TIMEOUT_MS); }
+function armFocusTimer(ms) { clearFocusTimer(); const d = (typeof ms === 'number' && ms > 0) ? ms : FOCUS_TIMEOUT_MS; focusTimer = setTimeout(function(){ currentFocus = null; focusTimer = null; }, d); }
+function applyTtl(b) { const ttlSec = (b.ttl === undefined || b.ttl === null) ? 120 : Number(b.ttl); if (ttlSec > 0) armFocusTimer(ttlSec * 1000); else clearFocusTimer(); }
 
 function isQuietHours() {
   const now = new Date();
@@ -178,6 +180,58 @@ const CITY_ALIASES = {
   'Kansas City, Missouri': 'Kansas City',
 };
 
+
+const KNOCKOUT_BRACKET = {
+  '2026-06-28T19:00:00Z': { number: 73, home: { short: '2A', tla: '2A' }, away: { short: '2B', tla: '2B' } },
+  '2026-06-29T17:00:00Z': { number: 76, home: { short: '1C', tla: '1C' }, away: { short: '2F', tla: '2F' } },
+  '2026-06-29T20:30:00Z': { number: 74, home: { short: '1E', tla: '1E' }, away: { short: '3/A/B/C/D/F', tla: '3rd' } },
+  '2026-06-30T01:00:00Z': { number: 75, home: { short: '1F', tla: '1F' }, away: { short: '2C', tla: '2C' } },
+  '2026-06-30T17:00:00Z': { number: 78, home: { short: '2E', tla: '2E' }, away: { short: '2I', tla: '2I' } },
+  '2026-06-30T21:00:00Z': { number: 77, home: { short: '1I', tla: '1I' }, away: { short: '3/C/D/F/G/H', tla: '3rd' } },
+  '2026-07-01T01:00:00Z': { number: 79, home: { short: '1A', tla: '1A' }, away: { short: '3/C/E/F/H/I', tla: '3rd' } },
+  '2026-07-01T16:00:00Z': { number: 80, home: { short: '1L', tla: '1L' }, away: { short: '3/E/H/I/J/K', tla: '3rd' } },
+  '2026-07-01T20:00:00Z': { number: 82, home: { short: '1G', tla: '1G' }, away: { short: '3/A/E/H/I/J', tla: '3rd' } },
+  '2026-07-02T00:00:00Z': { number: 81, home: { short: '1D', tla: '1D' }, away: { short: '3/B/E/F/I/J', tla: '3rd' } },
+  '2026-07-02T19:00:00Z': { number: 84, home: { short: '1H', tla: '1H' }, away: { short: '2J', tla: '2J' } },
+  '2026-07-02T23:00:00Z': { number: 83, home: { short: '2K', tla: '2K' }, away: { short: '2L', tla: '2L' } },
+  '2026-07-03T03:00:00Z': { number: 85, home: { short: '1B', tla: '1B' }, away: { short: '3/E/F/G/I/J', tla: '3rd' } },
+  '2026-07-03T18:00:00Z': { number: 88, home: { short: '2D', tla: '2D' }, away: { short: '2G', tla: '2G' } },
+  '2026-07-03T22:00:00Z': { number: 86, home: { short: '1J', tla: '1J' }, away: { short: '2H', tla: '2H' } },
+  '2026-07-04T01:30:00Z': { number: 87, home: { short: '1K', tla: '1K' }, away: { short: '3/D/E/I/J/L', tla: '3rd' } },
+  '2026-07-04T17:00:00Z': { number: 90, home: { short: 'Winner M73', tla: 'W73' }, away: { short: 'Winner M75', tla: 'W75' } },
+  '2026-07-04T21:00:00Z': { number: 89, home: { short: 'Winner M74', tla: 'W74' }, away: { short: 'Winner M77', tla: 'W77' } },
+  '2026-07-05T20:00:00Z': { number: 91, home: { short: 'Winner M76', tla: 'W76' }, away: { short: 'Winner M78', tla: 'W78' } },
+  '2026-07-06T00:00:00Z': { number: 92, home: { short: 'Winner M79', tla: 'W79' }, away: { short: 'Winner M80', tla: 'W80' } },
+  '2026-07-06T19:00:00Z': { number: 93, home: { short: 'Winner M83', tla: 'W83' }, away: { short: 'Winner M84', tla: 'W84' } },
+  '2026-07-07T00:00:00Z': { number: 94, home: { short: 'Winner M81', tla: 'W81' }, away: { short: 'Winner M82', tla: 'W82' } },
+  '2026-07-07T16:00:00Z': { number: 95, home: { short: 'Winner M86', tla: 'W86' }, away: { short: 'Winner M88', tla: 'W88' } },
+  '2026-07-07T20:00:00Z': { number: 96, home: { short: 'Winner M85', tla: 'W85' }, away: { short: 'Winner M87', tla: 'W87' } },
+  '2026-07-09T20:00:00Z': { number: 97, home: { short: 'Winner M89', tla: 'W89' }, away: { short: 'Winner M90', tla: 'W90' } },
+  '2026-07-10T19:00:00Z': { number: 98, home: { short: 'Winner M93', tla: 'W93' }, away: { short: 'Winner M94', tla: 'W94' } },
+  '2026-07-11T21:00:00Z': { number: 99, home: { short: 'Winner M91', tla: 'W91' }, away: { short: 'Winner M92', tla: 'W92' } },
+  '2026-07-12T01:00:00Z': { number: 100, home: { short: 'Winner M95', tla: 'W95' }, away: { short: 'Winner M96', tla: 'W96' } },
+  '2026-07-14T19:00:00Z': { number: 101, home: { short: 'Winner M97', tla: 'W97' }, away: { short: 'Winner M98', tla: 'W98' } },
+  '2026-07-15T19:00:00Z': { number: 102, home: { short: 'Winner M99', tla: 'W99' }, away: { short: 'Winner M100', tla: 'W100' } },
+  '2026-07-18T21:00:00Z': { number: 103, home: { short: 'Loser M101', tla: 'L101' }, away: { short: 'Loser M102', tla: 'L102' } },
+  '2026-07-19T19:00:00Z': { number: 104, home: { short: 'Winner M101', tla: 'W101' }, away: { short: 'Winner M102', tla: 'W102' } },
+};
+
+function applyBracketInfo(match) {
+  const bracket = KNOCKOUT_BRACKET[match.utcDate];
+  if (!bracket) return;
+  match.matchNumber = bracket.number;
+  if (!match.homeTeam.id) {
+    match.homeTeam.shortName = bracket.home.short;
+    match.homeTeam.tla = bracket.home.tla;
+    match.homeTeam.name = bracket.home.short;
+  }
+  if (!match.awayTeam.id) {
+    match.awayTeam.shortName = bracket.away.short;
+    match.awayTeam.tla = bracket.away.tla;
+    match.awayTeam.name = bracket.away.short;
+  }
+}
+
 function normalize(str) { return str.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
 
 function matchTeams(fbdMatch, espnEntry) {
@@ -254,6 +308,8 @@ app.get('/api/fixtures', async (req, res) => {
     const allMatches = fbdData.matches || [];
 
     for (const match of allMatches) {
+      applyBracketInfo(match);
+      if (!match.homeTeam.id || !match.awayTeam.id) continue;
       const espnEntry = Object.values(espnLive).find(e => matchTeams(match, e));
       if (!espnEntry) continue;
 
@@ -279,6 +335,8 @@ app.get('/api/fixtures', async (req, res) => {
     let window;
     if (currentFocus && currentFocus.type === 'date') {
       window = allMatches.filter(function(m){ return etDateStr(m.utcDate) === currentFocus.date; }).sort(function(a,b){ return new Date(a.utcDate) - new Date(b.utcDate); });
+    } else if (currentFocus && currentFocus.type === 'group') {
+      window = allMatches.filter(function(m){ return m.group === 'GROUP_' + currentFocus.group; }).sort(function(a,b){ return new Date(a.utcDate) - new Date(b.utcDate); });
     } else if (currentFocus) {
       window = allMatches.filter(function(m){ return (m.homeTeam.id === currentFocus.id) || (m.awayTeam.id === currentFocus.id); }).sort(function(a,b){ return new Date(a.utcDate) - new Date(b.utcDate); });
     } else {
@@ -423,17 +481,28 @@ function getLocalIP() {
 }
 
 app.get('/api/control', function(req, res){ res.json({ focus: currentFocus }); });
+app.post('/api/refresh', function(req, res){
+  exec('WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 wtype -k F5', function(err){
+    if (err) { console.error('refresh failed:', err.message); return res.status(500).json({ ok: false, error: err.message }); }
+    res.json({ ok: true });
+  });
+});
 app.post('/api/control', function(req, res){
   const b = req.body || {};
   if (b.clear) { currentFocus = null; clearFocusTimer(); return res.json({ focus: null }); }
   if (b.date) {
     currentFocus = { type: 'date', date: b.date, banner: 'Showing games on ' + (b.label || b.date) };
-    armFocusTimer();
+    applyTtl(b);
+    return res.json({ focus: currentFocus });
+  }
+  if (b.group) {
+    currentFocus = { type: 'group', group: b.group, banner: 'Showing Group ' + b.group };
+    armFocusTimer(b.reset);
     return res.json({ focus: currentFocus });
   }
   if (b.id === undefined || b.id === null) { currentFocus = null; clearFocusTimer(); return res.json({ focus: null }); }
   currentFocus = { type: 'team', id: b.id, name: b.name || String(b.id), banner: 'Showing ' + (b.name || b.id) + ' only' };
-  armFocusTimer();
+  applyTtl(b);
   res.json({ focus: currentFocus });
 });
 app.get('/api/qr', async function(req, res){

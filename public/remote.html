@@ -10,6 +10,8 @@
   #status { text-align:center; color:#8892a4; margin-bottom:14px; font-size:0.95rem; }
   button { font-family:inherit; }
   #reset { display:block; width:100%; padding:14px; margin-bottom:16px; background:#3b82f6; color:#fff; border:none; border-radius:8px; font-size:1rem; font-weight:700; }
+  #refresh { display:block; width:100%; margin-top:16px; padding:12px; background:transparent; color:#8892a4; border:1px solid #1e2438; border-radius:8px; font-size:0.95rem; font-weight:600; }
+  #refresh:active { background:#111827; }
   .mode-tabs { display:flex; gap:8px; margin-bottom:16px; }
   .mode-tabs button { flex:1; padding:12px; background:#111827; color:#8892a4; border:1px solid #1e2438; border-radius:8px; font-size:1rem; font-weight:700; }
   .mode-tabs button.active { background:#1a1f35; color:#c9a84c; border-color:#c9a84c; }
@@ -26,6 +28,9 @@
   #date-input { width:100%; padding:14px; background:#111827; border:1px solid #1e2438; border-radius:8px; color:#e2e8f0; font-size:1rem; }
   #date-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.9; cursor: pointer; }
   .hint { color:#4a5568; font-size:0.8rem; margin-top:8px; text-align:center; }
+  .ttl-row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; padding:12px 14px; background:#111827; border:1px solid #1e2438; border-radius:8px; }
+  .ttl-row label { color:#8892a4; font-size:0.95rem; font-weight:600; }
+  #ttl-select { background:#0a0e1a; color:#e2e8f0; border:1px solid #1e2438; border-radius:6px; padding:8px 10px; font-size:1rem; font-family:inherit; }
   button { transition: transform 0.08s ease, background 0.15s ease, filter 0.15s ease, color 0.15s ease; -webkit-tap-highlight-color: transparent; }
   button:active { transform: scale(0.96); }
   #reset:active { filter: brightness(0.92); transform: scale(0.99); }
@@ -38,6 +43,10 @@
   #country-panel:has(#dd-list:not(.hidden)) .chev { transform: rotate(180deg); }
   @keyframes ddOpen { from { opacity:0; transform: translateY(-6px); } to { opacity:1; transform: translateY(0); } }
   @keyframes pickPulse { 0% { background: rgba(34,197,94,0.45); } 100% { background: rgba(34,197,94,0.12); } }
+  .group-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .group-btn { padding:18px 8px; background:#1a1f35; border:1px solid #1e2438; border-radius:8px; color:#e2e8f0; font-size:1.4rem; font-weight:800; cursor:pointer; transition:background 0.15s; }
+  .group-btn:hover { background:rgba(201,168,76,0.2); border-color:#c9a84c; }
+  .group-btn.active { background:#c9a84c; color:#000; border-color:#c9a84c; }
 </style>
 </head>
 <body>
@@ -45,9 +54,15 @@
 <div id="status">Loading...</div>
 <button id="reset">Return to Default (Show All)</button>
 
+<div class="ttl-row">
+  <label for="ttl-select">Hold selection for</label>
+  <select id="ttl-select"></select>
+</div>
+
 <div class="mode-tabs">
   <button id="tab-country" class="active">By Country</button>
   <button id="tab-date">By Date</button>
+  <button id="tab-group">By Group</button>
 </div>
 
 <div id="country-panel">
@@ -60,18 +75,39 @@
   <div class="hint" id="date-hint"></div>
 </div>
 
+<button id="refresh">&#8635; Refresh Dashboard</button>
+
+<div id="group-panel" class="hidden">
+  <p style="color:#8892a4;font-size:0.85rem;margin-bottom:12px;text-align:center">Select a group to focus the fixture view</p>
+  <div id="group-grid" class="group-grid">
+    <button class="group-btn" data-group="A">A</button>
+    <button class="group-btn" data-group="B">B</button>
+    <button class="group-btn" data-group="C">C</button>
+    <button class="group-btn" data-group="D">D</button>
+    <button class="group-btn" data-group="E">E</button>
+    <button class="group-btn" data-group="F">F</button>
+    <button class="group-btn" data-group="G">G</button>
+    <button class="group-btn" data-group="H">H</button>
+    <button class="group-btn" data-group="I">I</button>
+    <button class="group-btn" data-group="J">J</button>
+    <button class="group-btn" data-group="K">K</button>
+    <button class="group-btn" data-group="L">L</button>
+  </div>
+</div>
 <script>
 let teams = [];
 let lastRemoteKey = undefined;
+let selectedTtl = 120;
+let currentRemoteFocus = null;
+function dateLabel(v){ return new Date(v + 'T12:00:00').toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric' }); }
 function keyOf(f){ return f ? (f.type === 'date' ? 'd:' + f.date : 't:' + f.id) : null; }
 
 function setStatus(focus) {
-  document.getElementById('status').textContent = focus ? focus.banner : 'Showing: All matches';
-  document.querySelectorAll('.dd-item').forEach(function(it){
-    it.classList.toggle('active', focus && focus.type === 'team' && parseInt(it.dataset.id) === focus.id);
-  });
-  if (focus && focus.type === 'team') { setToggleLabel(teams.find(function(x){ return x.id === focus.id; })); }
-  else { setToggleLabel(null); }
+  const el = document.getElementById('status');
+  if (!focus) { el.textContent = 'Default view'; el.className = ''; return; }
+  if (focus.type === 'team') { el.textContent = '🌍 ' + focus.label; el.className = 'active'; return; }
+  if (focus.type === 'date') { el.textContent = '📅 ' + focus.label; el.className = 'active'; return; }
+  if (focus.type === 'group') { el.textContent = '🔠 Group ' + focus.group; el.className = 'active'; return; }
 }
 
 function setToggleLabel(t) {
@@ -81,10 +117,12 @@ function setToggleLabel(t) {
 }
 
 async function post(body) {
+  if (!body.clear) body.ttl = selectedTtl;
   const res = await fetch('/api/control', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
   const focus = (await res.json()).focus;
   setStatus(focus);
   lastRemoteKey = keyOf(focus);
+  currentRemoteFocus = focus;
 }
 
 async function pollFocus() {
@@ -94,6 +132,7 @@ async function pollFocus() {
     if (k === lastRemoteKey) return;
     lastRemoteKey = k;
     setStatus(ctrl.focus);
+    currentRemoteFocus = ctrl.focus;
     if (!ctrl.focus) { document.getElementById('date-input').value = ''; }
   } catch(e) {}
 }
@@ -118,14 +157,14 @@ document.getElementById('dd-toggle').addEventListener('click', function(){
   document.getElementById('dd-list').classList.toggle('hidden');
 });
 document.getElementById('tab-country').addEventListener('click', function(){
-  this.classList.add('active'); document.getElementById('tab-date').classList.remove('active');
+  this.classList.add('active'); document.getElementById('tab-date').classList.remove('active'); document.getElementById('tab-group').classList.remove('active');
   document.getElementById('country-panel').classList.remove('hidden');
-  document.getElementById('date-panel').classList.add('hidden');
+  document.getElementById('date-panel').classList.add('hidden'); document.getElementById('group-panel').classList.add('hidden');
 });
 document.getElementById('tab-date').addEventListener('click', function(){
-  this.classList.add('active'); document.getElementById('tab-country').classList.remove('active');
+  this.classList.add('active'); document.getElementById('tab-country').classList.remove('active'); document.getElementById('tab-group').classList.remove('active');
   document.getElementById('date-panel').classList.remove('hidden');
-  document.getElementById('country-panel').classList.add('hidden');
+  document.getElementById('country-panel').classList.add('hidden'); document.getElementById('group-panel').classList.add('hidden');
 });
 document.getElementById('date-input').addEventListener('change', function(){
   const v = this.value;
@@ -134,6 +173,29 @@ document.getElementById('date-input').addEventListener('change', function(){
   post({ date: v, label: label });
 });
 document.getElementById('reset').addEventListener('click', function(){ post({ clear: true }); });
+document.getElementById('refresh').addEventListener('click', async function(){
+  const btn = this, orig = btn.textContent;
+  btn.textContent = 'Refreshing...';
+  try { await fetch('/api/refresh', { method:'POST' }); } catch(e) {}
+  setTimeout(function(){ btn.textContent = orig; }, 1500);
+});
+
+function buildTtlOptions() {
+  const sel = document.getElementById('ttl-select');
+  let opts = '';
+  for (let sec = 30; sec <= 300; sec += 30) {
+    const m = Math.floor(sec / 60), ss = sec % 60;
+    opts += '<option value="' + sec + '"' + (sec === selectedTtl ? ' selected' : '') + '>' + m + ':' + String(ss).padStart(2, '0') + '</option>';
+  }
+  opts += '<option value="0">No limit</option>';
+  sel.innerHTML = opts;
+}
+document.getElementById('ttl-select').addEventListener('change', function(){
+  selectedTtl = parseInt(this.value, 10);
+  const fo = currentRemoteFocus;
+  if (fo && fo.type === 'team') post({ id: fo.id, name: fo.name });
+  else if (fo && fo.type === 'date') post({ date: fo.date, label: dateLabel(fo.date) });
+});
 
 (async function(){
   const meta = await fetch('/api/teams').then(function(r){ return r.json(); });
@@ -143,11 +205,28 @@ document.getElementById('reset').addEventListener('click', function(){ post({ cl
   if (meta.firstDate) di.min = meta.firstDate;
   if (meta.lastDate) di.max = meta.lastDate;
   document.getElementById('date-hint').textContent = (meta.firstDate && meta.lastDate) ? ('Tournament runs ' + meta.firstDate + ' to ' + meta.lastDate) : '';
+  buildTtlOptions();
   const ctrl = await fetch('/api/control').then(function(r){ return r.json(); });
   setStatus(ctrl.focus);
   lastRemoteKey = keyOf(ctrl.focus);
+  currentRemoteFocus = ctrl.focus;
   if (ctrl.focus && ctrl.focus.type === 'date') { document.getElementById('tab-date').click(); di.value = ctrl.focus.date; }
+  if (ctrl.focus && ctrl.focus.type === 'group') { document.getElementById('tab-group').click(); const ab = document.querySelector('.group-btn[data-group="' + ctrl.focus.group + '"]'); if (ab) ab.classList.add('active'); }
 })();
+
+document.getElementById('tab-group').addEventListener('click', function(){
+  this.classList.add('active'); document.getElementById('tab-country').classList.remove('active'); document.getElementById('tab-date').classList.remove('active');
+  document.getElementById('group-panel').classList.remove('hidden');
+  document.getElementById('country-panel').classList.add('hidden'); document.getElementById('date-panel').classList.add('hidden');
+});
+document.getElementById('group-grid').addEventListener('click', async function(e) {
+  const btn = e.target.closest('.group-btn');
+  if (!btn) return;
+  const g = btn.dataset.group;
+  document.querySelectorAll('.group-btn').forEach(function(b){ b.classList.remove('active'); });
+  btn.classList.add('active');
+  await post({ group: g });
+});
 </script>
 </body>
 </html>
